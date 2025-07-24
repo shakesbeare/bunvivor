@@ -5,13 +5,14 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.16.1", features = ["dynamic_linking"] }
-bevy_ecs_tilemap = { version = "0.16.0", features = ["atlas"] }
-bevy_egui = "0.35.1"
-egui = "0.32.0"
-egui_dock = "0.17.0"
+bevy-inspector-egui = "0.32.0"
+bevy_egui = "0.35"
+egui_dock = "0.16"
+egui = "0.31"
 leafwing-input-manager = "0.17.1"
 rand = "0.9.1"
-transform-gizmo-egui = "0.6.0"
+transform-gizmo-egui = "0.6"
+bevy_math = { version = "0.16.1", features = ["mint"] }
 
 [profile.dev]
 opt-level = 0

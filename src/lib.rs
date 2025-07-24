@@ -6,7 +6,6 @@ use bevy::color::palettes::css::{SILVER, WHITE};
 use bevy::prelude::App as BevyApp;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy_ecs_tilemap::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use leafwing_input_manager::prelude::InputMap;
 use rand::prelude::*;
@@ -29,6 +28,8 @@ impl App {
 
         app.add_plugins(SetupPlugin);
         app.add_plugins(InputManagerPlugin::<crate::controls::Action>::default());
+        #[cfg(debug_assertions)]
+        app.add_plugins(crate::inspector::Inspector);
         app.add_plugins(crate::controls::ControlsPlugin);
         app.add_plugins(crate::animation::AnimationPlugin);
 
@@ -95,7 +96,6 @@ pub struct SetupPlugin;
 impl Plugin for SetupPlugin {
     fn build(&self, app: &mut BevyApp) {
         app.add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()));
-        app.add_plugins(TilemapPlugin);
         app.add_systems(Startup, setup);
     }
 }
@@ -107,7 +107,6 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    // spawn bun
     commands.spawn((
         Mesh3d(meshes.add(Capsule3d {
             radius: 25.0,
@@ -126,6 +125,7 @@ fn setup(
         Acceleration(Vec3::ZERO),
         Player,
         Transform::from_translation(Vec3::new(0.0, 25.0, 0.0)),
+        Name::new("Player")
     ));
 
     commands.spawn((
@@ -137,6 +137,7 @@ fn setup(
             ..default()
         },
         Transform::from_xyz(200.0, 200.0, 200.0),
+        Name::new("Sun")
     ));
 
     commands.spawn((
@@ -146,6 +147,7 @@ fn setup(
             ..default()
         })),
         Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        Name::new("Debug Floor")
     ));
 
     // spawn camera
@@ -161,6 +163,8 @@ fn setup(
         }),
         Transform::from_xyz(0.0, 7., 14.0).looking_at(Vec3::new(0., 1., 0.), Vec3::Y),
         CameraDistance(1500.),
+        MainCamera,
+        Name::new("MainCamera")
     ));
 }
 
