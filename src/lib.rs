@@ -107,10 +107,11 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    // bun
     commands.spawn((
         Mesh3d(meshes.add(Capsule3d {
-            radius: 25.0,
-            half_length: 25.0,
+            radius: 2.0,
+            half_length: 2.0,
         })),
         MeshMaterial3d(materials.add(Color::from(WHITE))),
         InputMap::new([
@@ -119,29 +120,29 @@ fn setup(
             (Action::Up, KeyCode::ArrowUp),
             (Action::Down, KeyCode::ArrowDown),
         ]),
-        MoveSpeed(295.0),
+        MoveSpeed(23.6),
         MoveVector(Vec3::ZERO),
         Velocity(Vec3::ZERO),
         Acceleration(Vec3::ZERO),
         Player,
-        Transform::from_translation(Vec3::new(0.0, 25.0, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)),
         Name::new("Player")
     ));
 
     commands.spawn((
         PointLight {
             shadows_enabled: true,
-            intensity: 10_000_00_0000.,
-            range: 1000.0,
+            intensity: 10_000_000.,
+            range: 80.0,
             shadow_depth_bias: 0.2,
             ..default()
         },
-        Transform::from_xyz(200.0, 200.0, 200.0),
+        Transform::from_xyz(16.0, 16.0, 16.0),
         Name::new("Sun")
     ));
 
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(1400.0, 1400.0).subdivisions(10))),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(112.0, 112.0).subdivisions(10))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color_texture: Some(images.add(uv_debug_texture())),
             ..default()
@@ -162,7 +163,7 @@ fn setup(
             ..default()
         }),
         Transform::from_xyz(0.0, 7., 14.0).looking_at(Vec3::new(0., 1., 0.), Vec3::Y),
-        CameraDistance(1500.),
+        CameraDistance(120.),
         MainCamera,
         Name::new("MainCamera")
     ));
