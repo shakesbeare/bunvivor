@@ -224,7 +224,7 @@ fn setup(
             ..default()
         },
         RigidBody::Fixed,
-        Transform::from_translation(Vec3::new(-120.0, 66.0 * sin(30_f32.to_radians()), 0.0))
+        Transform::from_translation(Vec3::new(-112.0, 66.0 * sin(30_f32.to_radians()), 0.0))
             .with_rotation(Quat::from_rotation_z(-30_f32.to_radians())),
         Name::new("Debug Floor"),
         Ground,
@@ -251,8 +251,8 @@ fn setup(
         },
         RigidBody::Fixed,
         Transform::from_translation(Vec3::new(
-            -112.0 + -112.0 * cos(30_f32.to_radians()),
-            112.0 * sin(30_f32.to_radians()),
+            -138.0 + -112.0 * cos(30_f32.to_radians()),
+            112.0 * sin(30_f32.to_radians()) + 10.,
             0.0,
         )),
         Name::new("Debug Floor"),
