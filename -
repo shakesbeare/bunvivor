@@ -5,15 +5,14 @@ use bevy::{
     prelude::*,
 };
 use bevy_rapier3d::{
-    pipeline::CollisionEvent,
     plugin::ReadRapierContext,
     prelude::{
         Collider, ExternalForce, GravityScale, QueryFilter, RigidBody, ShapeCastOptions, Velocity,
-    },
+    }, rapier::prelude::CollisionEvent,
 };
 use leafwing_input_manager::{Actionlike, prelude::ActionState};
 
-use crate::{CameraDistance, CollidedGrounds, MoveVector, Player};
+use crate::{CameraDistance, MoveVector, Player};
 use crate::{Ground, MoveSpeed};
 use crate::{IntendedRotation, VecTools};
 
@@ -24,7 +23,6 @@ pub struct ControlsPlugin;
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<MoveVector>();
-        app.register_type::<CollidedGrounds>();
         app.add_systems(
             Update,
             (
@@ -32,7 +30,6 @@ impl Plugin for ControlsPlugin {
                 camera_lock.after(control_player),
                 entities_try_to_move.after(control_player),
                 gravity_control,
-                check_collided_grounds,
                 fix_rotation,
             ),
         );
@@ -107,43 +104,11 @@ pub fn control_player(
     // dbg!(move_vec);
 }
 
-pub fn check_collided_grounds(
-    ground: Query<Entity, With<Ground>>,
-    mut collidee: Query<(Entity, &mut CollidedGrounds), Without<Ground>>,
+pub fn gravity_control(
     mut collision_events: EventReader<CollisionEvent>,
 ) {
     for collision_event in collision_events.read() {
-        match collision_event {
-            CollisionEvent::Started(entity, entity1, collision_event_flags) => {
-                let mut ent = collidee.iter_mut().find(|(e, _)| e == entity);
-                let other = ground.iter().find(|e| e == entity1);
-                if let (Some((_, mut cg)), Some(other)) = (ent, other) {
-                    cg.push(other);
-                }
-            }
-            CollisionEvent::Stopped(entity, entity1, collision_event_flags) => {
-                let mut ent = collidee.iter_mut().find(|(e, _)| e == entity);
-                let mut other = ground.iter().find(|e| e == entity1);
-                if let (Some((this, mut cg)), Some(other)) = (ent, other) {
-                    let idx = cg.iter().position(|e| *e == other);
-                    if let Some(idx) = idx {
-                        cg.swap_remove(idx);
-                    }
-                }
-            }
-        }
-    }
-}
 
-pub fn gravity_control(mut query: Query<(&mut GravityScale, &CollidedGrounds)>) {
-    for (mut gs, cg) in query.iter_mut() {
-        if cg.is_empty() {
-            // object is not grounded, no collided grounds exist
-            gs.0 = 30.0;
-        } else {
-            // object is grounded, collided grounds exist
-            gs.0 = 0.0;
-        }
     }
 }
 

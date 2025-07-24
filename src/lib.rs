@@ -86,6 +86,9 @@ pub struct Player;
 #[derive(Component)]
 pub struct Ground;
 
+#[derive(Component, Deref, DerefMut, Reflect)]
+pub struct CollidedGrounds(Vec<Entity>);
+
 /// Describes the move speed of the player in terms of background tiles per second
 #[derive(Component, Deref, DerefMut)]
 pub struct MoveSpeed(pub f32);
@@ -131,34 +134,38 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
 ) {
     // bun
-    commands.spawn((
-        Mesh3d(meshes.add(Capsule3d {
-            radius: 1.0,
-            half_length: 1.0,
-        })),
-        MeshMaterial3d(materials.add(Color::from(WHITE))),
-        InputMap::new([
-            (Action::Left, KeyCode::ArrowLeft),
-            (Action::Right, KeyCode::ArrowRight),
-            (Action::Up, KeyCode::ArrowUp),
-            (Action::Down, KeyCode::ArrowDown),
-        ]),
-        MoveSpeed(23.6),
-        MoveVector::default(),
-        Player,
-        Transform::from_translation(Vec3::new(0.0, 2.1, 0.0)),
-        Name::new("Player"),
-        bevy_rapier3d::dynamics::Damping {
-            linear_damping: 0.0,
-            angular_damping: 6.5
-        },
-        RigidBody::Dynamic,
-        Velocity::default(),
-        ExternalForce::default(),
-        GravityScale(0.0),
-        Collider::capsule(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 1.0),
-        IntendedRotation::default(),
-    ));
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Capsule3d {
+                radius: 1.0,
+                half_length: 1.0,
+            })),
+            MeshMaterial3d(materials.add(Color::from(WHITE))),
+            InputMap::new([
+                (Action::Left, KeyCode::ArrowLeft),
+                (Action::Right, KeyCode::ArrowRight),
+                (Action::Up, KeyCode::ArrowUp),
+                (Action::Down, KeyCode::ArrowDown),
+            ]),
+            MoveSpeed(23.6),
+            MoveVector::default(),
+            Player,
+            Transform::from_translation(Vec3::new(0.0, 2.1, 0.0)),
+            Name::new("Player"),
+            bevy_rapier3d::dynamics::Damping {
+                linear_damping: 0.0,
+                angular_damping: 6.5,
+            },
+            RigidBody::Dynamic,
+            Velocity::default(),
+            ExternalForce::default(),
+            GravityScale(1.0),
+            Collider::capsule(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 1.0),
+            IntendedRotation::default(),
+        ))
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(LockedAxes::ROTATION_LOCKED)
+        .insert(CollidedGrounds(Vec::new()));
 
     commands.spawn((
         PointLight {
@@ -243,7 +250,11 @@ fn setup(
             ..default()
         },
         RigidBody::Fixed,
-        Transform::from_translation(Vec3::new(-112.0 + -112.0 * cos(30_f32.to_radians()), 112.0 * sin(30_f32.to_radians()), 0.0)),
+        Transform::from_translation(Vec3::new(
+            -112.0 + -112.0 * cos(30_f32.to_radians()),
+            112.0 * sin(30_f32.to_radians()),
+            0.0,
+        )),
         Name::new("Debug Floor"),
         Ground,
     ));
