@@ -4,9 +4,12 @@ use bevy::{
     math::ops::{cos, sin},
     prelude::*,
 };
+use bevy_rapier3d::prelude::{ExternalForce, Velocity};
 use leafwing_input_manager::{Actionlike, prelude::ActionState};
 
-use crate::{move_entities, CameraDistance, MoveVector, Player, Velocity};
+use crate::MoveSpeed;
+use crate::{CameraDistance, MoveVector, Player};
+use crate::VecTools;
 
 const CAMERA_ANGLE: f32 = 30_f32.to_radians();
 
@@ -14,11 +17,12 @@ pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<MoveVector>();
         app.add_systems(
             Update,
             (
                 control_player,
-                camera_lock.after(control_player).after(move_entities),
+                camera_lock.after(control_player),
                 entities_try_to_move.after(control_player),
             ),
         );
@@ -34,12 +38,12 @@ pub(crate) enum Action {
 }
 
 pub fn control_player(
-    mut query: Query<(&mut MoveVector, &ActionState<Action>), With<Player>>,
+    mut query: Query<(&mut MoveVector, &MoveSpeed, &ActionState<Action>), With<Player>>,
     cam: Query<&Transform, With<Camera3d>>,
     player: Query<&Transform, With<Player>>,
 ) {
-    let (mut move_vec, action_state) = query.single_mut().unwrap();
-    **move_vec = Vec3::new(0., 0., 0.);
+    let (mut move_vec, move_speed,  action_state) = query.single_mut().unwrap();
+    **move_vec = Vec3::ZERO;
     let cam = cam.single().unwrap();
     let player = player.single().unwrap();
 
@@ -50,6 +54,7 @@ pub fn control_player(
     ).normalize();
     let right = forward.cross(Vec3::Y);
 
+    // handle pressing buttons
     if action_state.pressed(&Action::Left) {
         **move_vec -= right;
     }
@@ -65,14 +70,53 @@ pub fn control_player(
     if action_state.pressed(&Action::Up) {
         **move_vec += forward;
     }
+    
 
-    move_vec.normalize();
+    // handle releasing the buttons
+    // can't just set move_vec to 0 at start of function call
+    // because we have to "keep track" of how much velocity
+    // moving is adding to the overall velocity so we have
+    // snappy movement AND physics based movement
+    if action_state.released(&Action::Left) {
+        **move_vec += right;
+    }
+
+    if action_state.released(&Action::Right) {
+        **move_vec -= right;
+    }
+
+    if action_state.released(&Action::Down) {
+        **move_vec += forward;
+    }
+
+    if action_state.released(&Action::Up) {
+        **move_vec -= forward;
+    }
+
+    **move_vec = move_vec.normalize_or(Vec3::ZERO) * **move_speed;
+    // dbg!(move_vec);
 }
 
-pub fn entities_try_to_move(mut query: Query<(&mut Velocity, &crate::MoveSpeed, &MoveVector)>) {
-    for (mut velocity, move_speed, move_vec) in query.iter_mut() {
-        **velocity = **move_vec * move_speed.0;
+pub fn entities_try_to_move(mut query: Query<(&mut ExternalForce, &Velocity, &MoveVector)>) {
+    for (mut force, vel, move_vec) in query.iter_mut() {
+        // velocity.linvel.max_mag(move_vec);
+        let new_force = calc_force_diff(1.0, vel.linvel.xz(), move_vec.xz());
+        force.force = Vec3::new(new_force.x, force.force.y, new_force.y);
     }
+}
+
+/// clamped_input is a 0.0-1.0 value representing the user's
+/// desired percentage of top speed to hold
+///
+/// `current_velocity` is the current horizontal velocity
+fn calc_force_diff(
+    clamped_input: f32,
+    current_velocity: Vec2,
+    target_velocity: Vec2,
+) -> Vec2 {
+    let target_speed = target_velocity * clamped_input;
+    let diff_to_make_up = target_speed - current_velocity;
+    diff_to_make_up * 300.0
 }
 
 pub fn camera_lock(

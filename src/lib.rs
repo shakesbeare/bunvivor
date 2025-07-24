@@ -6,6 +6,10 @@ use bevy::color::palettes::css::{SILVER, WHITE};
 use bevy::prelude::App as BevyApp;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy_inspector_egui::inspector_egui_impls::InspectorPrimitive;
+use bevy_inspector_egui::InspectorOptions;
+use bevy_rapier3d::prelude::*;
+use bevy_inspector_egui::prelude::ReflectInspectorOptions;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use leafwing_input_manager::prelude::InputMap;
 use rand::prelude::*;
@@ -32,8 +36,8 @@ impl App {
         app.add_plugins(crate::inspector::Inspector);
         app.add_plugins(crate::controls::ControlsPlugin);
         app.add_plugins(crate::animation::AnimationPlugin);
-
-        app.add_systems(Update, (move_entities, accel_entities));
+        app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
+        app.add_plugins(RapierDebugRenderPlugin::default());
 
         return Self { _app: app };
     }
@@ -49,6 +53,29 @@ impl Default for App {
     }
 }
 
+pub trait VecTools {
+    type Other;
+    fn max_mag(&mut self, other: &Self::Other);
+}
+
+impl VecTools for Vec3 {
+    type Other = Vec3;
+
+    fn max_mag(&mut self, other: &Self::Other) {
+        if self.x.abs() < other.x.abs() {
+            self.x = other.x;
+        }
+
+        if self.y.abs() < other.y.abs() {
+            self.y = other.y;
+        }
+
+        if self.z.abs() < other.z.abs() {
+            self.z = other.z;
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct MainCamera;
 
@@ -60,33 +87,24 @@ pub struct Player;
 pub struct MoveSpeed(pub f32);
 
 /// Describes the direction an entity is trying to move
-#[derive(Component, Deref, DerefMut)]
-pub struct MoveVector(pub Vec3);
+#[derive(Debug, Component, Deref, DerefMut, Reflect)]
+pub struct MoveVector {
+    pub vec: Vec3,
+}
 
-#[derive(Component, Debug, Deref, DerefMut)]
-pub struct Velocity(Vec3);
-
-impl Default for Velocity {
+impl Default for MoveVector {
     fn default() -> Self {
-        Velocity(Vec3::ZERO)
+        Self {
+            vec: Vec3::ZERO,
+        }
     }
 }
 
-impl Velocity {
-    pub fn normalize(&mut self) {
-        self.0 = self.0.normalize_or(Vec3::ZERO);
-    }
-
-    pub fn scale(&mut self, scalar: f32) {
-        self.0 *= scalar;
+impl AsRef<Vec3> for MoveVector {
+    fn as_ref(&self) -> &Vec3 {
+        return &self.vec;
     }
 }
-
-#[derive(Component, Deref, DerefMut)]
-pub struct Acceleration(Vec3);
-
-#[derive(Component, Deref, DerefMut)]
-pub struct AimAtPoint(Vec3);
 
 #[derive(Component, Deref, DerefMut)]
 pub struct CameraDistance(pub f32);
@@ -110,8 +128,8 @@ fn setup(
     // bun
     commands.spawn((
         Mesh3d(meshes.add(Capsule3d {
-            radius: 2.0,
-            half_length: 2.0,
+            radius: 1.0,
+            half_length: 1.0,
         })),
         MeshMaterial3d(materials.add(Color::from(WHITE))),
         InputMap::new([
@@ -121,12 +139,15 @@ fn setup(
             (Action::Down, KeyCode::ArrowDown),
         ]),
         MoveSpeed(23.6),
-        MoveVector(Vec3::ZERO),
-        Velocity(Vec3::ZERO),
-        Acceleration(Vec3::ZERO),
+        MoveVector::default(),
         Player,
         Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)),
-        Name::new("Player")
+        Name::new("Player"),
+        RigidBody::Dynamic,
+        Velocity::default(),
+        ExternalForce::default(),
+        Collider::capsule(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 1.0),
+        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
     ));
 
     commands.spawn((
@@ -147,6 +168,12 @@ fn setup(
             base_color_texture: Some(images.add(uv_debug_texture())),
             ..default()
         })),
+        Collider::cuboid(66.0, 0.1, 66.0),
+        Friction {
+            coefficient: 0.0,
+            ..default()
+        },
+        RigidBody::Fixed,
         Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
         Name::new("Debug Floor")
     ));
@@ -196,22 +223,4 @@ fn uv_debug_texture() -> Image {
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::RENDER_WORLD,
     )
-}
-
-fn move_entities(time: Res<Time>, mut query: Query<(&mut Transform, &Velocity)>) {
-    let dt = time.delta().as_secs_f32();
-    for (mut t, v) in query.iter_mut() {
-        t.translation.x += v.x * dt;
-        t.translation.y += v.y * dt;
-        t.translation.z += v.z * dt;
-    }
-}
-
-fn accel_entities(time: Res<Time>, mut query: Query<(&mut Velocity, &Acceleration)>) {
-    let dt = time.delta().as_secs_f32();
-    for (mut v, a) in query.iter_mut() {
-        v.x += a.x * dt;
-        v.y += a.y * dt;
-        v.z += a.z * dt;
-    }
 }
