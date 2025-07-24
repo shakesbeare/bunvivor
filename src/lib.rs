@@ -6,10 +6,11 @@ use bevy::color::palettes::css::{SILVER, WHITE};
 use bevy::prelude::App as BevyApp;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy_inspector_egui::inspector_egui_impls::InspectorPrimitive;
 use bevy_inspector_egui::InspectorOptions;
-use bevy_rapier3d::prelude::*;
+use bevy_inspector_egui::inspector_egui_impls::InspectorPrimitive;
 use bevy_inspector_egui::prelude::ReflectInspectorOptions;
+use bevy_math::ops::{cos, sin};
+use bevy_rapier3d::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use leafwing_input_manager::prelude::InputMap;
 use rand::prelude::*;
@@ -82,9 +83,15 @@ pub struct MainCamera;
 #[derive(Component)]
 pub struct Player;
 
+#[derive(Component)]
+pub struct Ground;
+
 /// Describes the move speed of the player in terms of background tiles per second
 #[derive(Component, Deref, DerefMut)]
 pub struct MoveSpeed(pub f32);
+
+#[derive(Component, Deref, DerefMut, Reflect, Debug, PartialEq, Default)]
+pub struct IntendedRotation(pub Quat);
 
 /// Describes the direction an entity is trying to move
 #[derive(Debug, Component, Deref, DerefMut, Reflect)]
@@ -94,9 +101,7 @@ pub struct MoveVector {
 
 impl Default for MoveVector {
     fn default() -> Self {
-        Self {
-            vec: Vec3::ZERO,
-        }
+        Self { vec: Vec3::ZERO }
     }
 }
 
@@ -141,13 +146,18 @@ fn setup(
         MoveSpeed(23.6),
         MoveVector::default(),
         Player,
-        Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 2.1, 0.0)),
         Name::new("Player"),
+        bevy_rapier3d::dynamics::Damping {
+            linear_damping: 0.0,
+            angular_damping: 6.5
+        },
         RigidBody::Dynamic,
         Velocity::default(),
         ExternalForce::default(),
+        GravityScale(0.0),
         Collider::capsule(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 1.0),
-        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
+        IntendedRotation::default(),
     ));
 
     commands.spawn((
@@ -159,11 +169,19 @@ fn setup(
             ..default()
         },
         Transform::from_xyz(16.0, 16.0, 16.0),
-        Name::new("Sun")
+        Name::new("Sun"),
     ));
 
+    // base floor
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(112.0, 112.0).subdivisions(10))),
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(112.0, 112.0)
+                    .subdivisions(10),
+            ),
+        ),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color_texture: Some(images.add(uv_debug_texture())),
             ..default()
@@ -175,16 +193,64 @@ fn setup(
         },
         RigidBody::Fixed,
         Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-        Name::new("Debug Floor")
+        Name::new("Debug Floor"),
+        Ground,
+    ));
+
+    // ramp
+    commands.spawn((
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(112.0, 112.0)
+                    .subdivisions(10),
+            ),
+        ),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color_texture: Some(images.add(uv_debug_texture())),
+            ..default()
+        })),
+        Collider::cuboid(66.0, 0.1, 66.0),
+        Friction {
+            coefficient: 0.0,
+            ..default()
+        },
+        RigidBody::Fixed,
+        Transform::from_translation(Vec3::new(-120.0, 66.0 * sin(30_f32.to_radians()), 0.0))
+            .with_rotation(Quat::from_rotation_z(-30_f32.to_radians())),
+        Name::new("Debug Floor"),
+        Ground,
+    ));
+
+    // second floor
+    commands.spawn((
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(112.0, 112.0)
+                    .subdivisions(10),
+            ),
+        ),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color_texture: Some(images.add(uv_debug_texture())),
+            ..default()
+        })),
+        Collider::cuboid(66.0, 0.1, 66.0),
+        Friction {
+            coefficient: 0.0,
+            ..default()
+        },
+        RigidBody::Fixed,
+        Transform::from_translation(Vec3::new(-112.0 + -112.0 * cos(30_f32.to_radians()), 112.0 * sin(30_f32.to_radians()), 0.0)),
+        Name::new("Debug Floor"),
+        Ground,
     ));
 
     // spawn camera
     commands.spawn((
         Camera3d { ..default() },
-        // Projection::Orthographic(OrthographicProjection {
-        //     far: 5000.0,
-        //     ..OrthographicProjection::default_3d()
-        // }),
         Projection::Perspective(PerspectiveProjection {
             fov: 35_f32.to_radians(),
             ..default()
@@ -192,7 +258,7 @@ fn setup(
         Transform::from_xyz(0.0, 7., 14.0).looking_at(Vec3::new(0., 1., 0.), Vec3::Y),
         CameraDistance(120.),
         MainCamera,
-        Name::new("MainCamera")
+        Name::new("MainCamera"),
     ));
 }
 

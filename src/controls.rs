@@ -4,12 +4,15 @@ use bevy::{
     math::ops::{cos, sin},
     prelude::*,
 };
-use bevy_rapier3d::prelude::{ExternalForce, Velocity};
+use bevy_rapier3d::{
+    plugin::ReadRapierContext,
+    prelude::{ExternalForce, QueryFilter, RigidBody, Velocity},
+};
 use leafwing_input_manager::{Actionlike, prelude::ActionState};
 
-use crate::MoveSpeed;
+use crate::{IntendedRotation, VecTools};
 use crate::{CameraDistance, MoveVector, Player};
-use crate::VecTools;
+use crate::{Ground, MoveSpeed};
 
 const CAMERA_ANGLE: f32 = 30_f32.to_radians();
 
@@ -24,6 +27,8 @@ impl Plugin for ControlsPlugin {
                 control_player,
                 camera_lock.after(control_player),
                 entities_try_to_move.after(control_player),
+                stay_grounded,
+                fix_rotation,
             ),
         );
     }
@@ -42,7 +47,7 @@ pub fn control_player(
     cam: Query<&Transform, With<Camera3d>>,
     player: Query<&Transform, With<Player>>,
 ) {
-    let (mut move_vec, move_speed,  action_state) = query.single_mut().unwrap();
+    let (mut move_vec, move_speed, action_state) = query.single_mut().unwrap();
     **move_vec = Vec3::ZERO;
     let cam = cam.single().unwrap();
     let player = player.single().unwrap();
@@ -51,7 +56,8 @@ pub fn control_player(
         player.translation.x - cam.translation.x,
         0.0,
         player.translation.z - cam.translation.z,
-    ).normalize();
+    )
+    .normalize();
     let right = forward.cross(Vec3::Y);
 
     // handle pressing buttons
@@ -70,7 +76,6 @@ pub fn control_player(
     if action_state.pressed(&Action::Up) {
         **move_vec += forward;
     }
-    
 
     // handle releasing the buttons
     // can't just set move_vec to 0 at start of function call
@@ -97,6 +102,45 @@ pub fn control_player(
     // dbg!(move_vec);
 }
 
+pub fn stay_grounded(
+    mut query: Query<(Entity, &mut Transform), (With<RigidBody>, Without<Ground>)>,
+    grounds: Query<(Entity, &mut Transform), With<Ground>>,
+    rapier_context: ReadRapierContext,
+) {
+    for (this, mut t) in query.iter_mut() {
+        let ray_pos = t.translation - Vec3::new(0.0, 2.0, 0.0);
+        let ray_dir = -Vec3::Y;
+        let solid = true;
+        let filter = QueryFilter {
+            exclude_collider: Some(this),
+            ..default()
+        };
+
+        rapier_context.single().unwrap().intersections_with_ray(
+            ray_pos,
+            ray_dir,
+            bevy_rapier3d::math::Real::MAX,
+            solid,
+            filter,
+            |entity, intersection| {
+                for (ge, gt) in grounds.iter() {
+                    if ge == entity {
+                        t.translation.y = intersection.point.y + 2.0;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        );
+    }
+}
+
+pub fn fix_rotation(mut query: Query<(&mut Transform, &IntendedRotation)>) {
+    for (mut t, r) in query.iter_mut() {
+        t.rotation = **r;
+    }
+}
+
 pub fn entities_try_to_move(mut query: Query<(&mut ExternalForce, &Velocity, &MoveVector)>) {
     for (mut force, vel, move_vec) in query.iter_mut() {
         // velocity.linvel.max_mag(move_vec);
@@ -109,11 +153,7 @@ pub fn entities_try_to_move(mut query: Query<(&mut ExternalForce, &Velocity, &Mo
 /// desired percentage of top speed to hold
 ///
 /// `current_velocity` is the current horizontal velocity
-fn calc_force_diff(
-    clamped_input: f32,
-    current_velocity: Vec2,
-    target_velocity: Vec2,
-) -> Vec2 {
+fn calc_force_diff(clamped_input: f32, current_velocity: Vec2, target_velocity: Vec2) -> Vec2 {
     let target_speed = target_velocity * clamped_input;
     let diff_to_make_up = target_speed - current_velocity;
     diff_to_make_up * 300.0
